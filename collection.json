@@ -1,0 +1,70 @@
+{
+	"info": {
+		"_postman_id": "00dc36ff-924a-4258-be2a-a9e285f10f5b",
+		"name": "InventoryService",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "50106899",
+		"_collection_link": "https://nstrqu-3389724.postman.co/workspace/Nastia-Kuzmina's-Workspace~79de8537-5ab1-4de1-89f0-f09a619f3602/collection/50106899-00dc36ff-924a-4258-be2a-a9e285f10f5b?action=share&source=collection_link&creator=50106899"
+	},
+	"item": [
+		{
+			"name": "POST register",
+			"request": {
+				"method": "GET",
+				"header": []
+			},
+			"response": []
+		},
+		{
+			"name": "GET inventory",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8080/inventory\n",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"inventory\n"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GET /inventory/{id}",
+			"request": {
+				"method": "GET",
+				"header": []
+			},
+			"response": []
+		},
+		{
+			"name": "PUT /inventory/{id}",
+			"request": {
+				"method": "GET",
+				"header": []
+			},
+			"response": []
+		},
+		{
+			"name": "DELETE /inventory/{id}",
+			"request": {
+				"method": "GET",
+				"header": []
+			},
+			"response": []
+		},
+		{
+			"name": "GET /inventory/{id}/photo",
+			"request": {
+				"method": "GET",
+				"header": []
+			},
+			"response": []
+		}
+	]
+}
