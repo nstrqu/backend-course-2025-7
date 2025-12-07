@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 // ----- Імпорт модулів -----
+require('dotenv').config();
 const http = require("http");
 const express = require("express");
 const { program } = require("commander");
@@ -21,7 +22,7 @@ program.parse(process.argv);
 const options = program.opts();
 
 const HOST = options.host;
-const PORT = parseInt(options.port, 10);
+const PORT = process.env.PORT;
 const CACHE_DIR = path.resolve(options.cache);
 const INVENTORY_FILE = path.join(CACHE_DIR, "inventory.json");
 
