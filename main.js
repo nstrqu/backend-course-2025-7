@@ -41,154 +41,244 @@ async function loadInventory() {
 }
 
 async function saveInventory(items) {
-  await fsp.writeFile(INVENTORY_FILE, JSON.stringify(items, null, 2), "utf-8");
+  await fsp.writeFile(INVENTORY_FILE, JSON.stringify(items, null, 2));
 }
 
 function findItem(items, id) {
   return items.find((item) => item.id === id);
 }
 
-// ----- Налаштування Express -----
+// ----- Express -----
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ----- Multer (фото) -----
+// ----- Multer -----
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, CACHE_DIR),
   filename: (req, file, cb) => {
     const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname) || ".jpg";
-    cb(null, unique + ext);
+    cb(null, unique + path.extname(file.originalname));
   },
 });
 const upload = multer({ storage });
 
-// ----- Swagger -----
-const swaggerDefinition = {
-  openapi: "3.0.0",
-  info: {
-    title: "Inventory Service API",
-    version: "1.0.0",
-    description: "Сервіс інвентаризації для лабораторної роботи №6",
-  },
-  servers: [{ url: `http://${HOST}:${PORT}` }],
-};
-
+// ----- Swagger Configuration -----
 const swaggerOptions = {
-  definition: swaggerDefinition,
+  definition: {
+    openapi: "3.0.0",
+    info: {
+      title: "Inventory API",
+      version: "1.0.0",
+      description: "API для управління інвентарем з можливістю завантаження фото",
+    },
+    servers: [
+      {
+        url: `http://${HOST}:${PORT}`,
+        description: "Development server",
+      },
+    ],
+  },
   apis: [__filename],
 };
 
-const swaggerSpec = swaggerJsdoc(swaggerOptions);
-app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+const swaggerDocs = swaggerJsdoc(swaggerOptions);
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
-/**
- * @swagger
- * components:
- *   schemas:
- *     InventoryItem:
- *       type: object
- *       properties:
- *         id:
- *           type: string
- *         inventory_name:
- *           type: string
- *         description:
- *           type: string
- *         photoUrl:
- *           type: string
- */
+// ----- HTML -----
+app.get("/RegisterForm.html", (req, res) =>
+  res.sendFile(path.join(__dirname, "RegisterForm.html"))
+);
 
-// ----- HTML-форми -----
-app.get("/RegisterForm.html", (req, res) => {
-  res.sendFile(path.join(__dirname, "RegisterForm.html"));
-});
-
-app.get("/SearchForm.html", (req, res) => {
-  res.sendFile(path.join(__dirname, "SearchForm.html"));
-});
+app.get("/SearchForm.html", (req, res) =>
+  res.sendFile(path.join(__dirname, "SearchForm.html"))
+);
 
 // ----- POST /register -----
+/**
+ * @swagger
+ * /register:
+ *   post:
+ *     summary: Реєстрація нового предмета в інвентарі
+ *     tags: [Inventory]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - inventory_name
+ *             properties:
+ *               inventory_name:
+ *                 type: string
+ *                 description: Назва предмета
+ *               description:
+ *                 type: string
+ *                 description: Опис предмета
+ *               photo:
+ *                 type: string
+ *                 format: binary
+ *                 description: Фото предмета
+ *     responses:
+ *       201:
+ *         description: Предмет успішно створено
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: string
+ *                 inventory_name:
+ *                   type: string
+ *                 description:
+ *                   type: string
+ *                 photoFilename:
+ *                   type: string
+ *                 photoUrl:
+ *                   type: string
+ *       400:
+ *         description: Відсутня обов'язкова назва предмета
+ */
 app.post("/register", upload.single("photo"), async (req, res) => {
   const { inventory_name, description } = req.body;
 
-  if (!inventory_name || inventory_name.trim() === "") {
+  if (!inventory_name)
     return res.status(400).json({ error: "inventory_name is required" });
-  }
 
   const items = await loadInventory();
-  const newId = String(Date.now());
-
-  let photoFilename = null;
-  let photoUrl = null;
-
-  if (req.file) {
-    photoFilename = req.file.filename;
-    photoUrl = `/inventory/${newId}/photo`;
-  }
+  const id = String(Date.now());
 
   const newItem = {
-    id: newId,
+    id,
     inventory_name,
     description: description || "",
-    photoFilename,
-    photoUrl,
+    photoFilename: req.file ? req.file.filename : null,
+    photoUrl: req.file ? `/inventory/${id}/photo` : null,
   };
 
   items.push(newItem);
   await saveInventory(items);
-
   res.status(201).json(newItem);
 });
 
-// allow only POST
-app.all("/register", (req, res, next) => {
-  if (req.method === "POST") return next();
-  res.status(405).json({ error: "Method not allowed" });
-});
-
 // ----- GET /inventory -----
+/**
+ * @swagger
+ * /inventory:
+ *   get:
+ *     summary: Отримати список всіх предметів
+ *     tags: [Inventory]
+ *     responses:
+ *       200:
+ *         description: Список предметів
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   inventory_name:
+ *                     type: string
+ *                   description:
+ *                     type: string
+ *                   photoFilename:
+ *                     type: string
+ *                   photoUrl:
+ *                     type: string
+ */
 app.get("/inventory", async (req, res) => {
   const items = await loadInventory();
-  res.json(
-    items.map((item) => ({
-      id: item.id,
-      inventory_name: item.inventory_name,
-      description: item.description,
-      photoUrl: item.photoUrl,
-    }))
-  );
-});
-
-// ❗ FIX — пропускаємо GET і OPTIONS
-app.all("/inventory", (req, res, next) => {
-  if (["GET", "OPTIONS"].includes(req.method)) return next();
-  res.status(405).json({ error: "Method not allowed" });
+  res.json(items);
 });
 
 // ----- GET /inventory/:id -----
+/**
+ * @swagger
+ * /inventory/{id}:
+ *   get:
+ *     summary: Отримати інформацію про конкретний предмет
+ *     tags: [Inventory]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID предмета
+ *     responses:
+ *       200:
+ *         description: Інформація про предмет
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: string
+ *                 inventory_name:
+ *                   type: string
+ *                 description:
+ *                   type: string
+ *                 photoFilename:
+ *                   type: string
+ *                 photoUrl:
+ *                   type: string
+ *       404:
+ *         description: Предмет не знайдено
+ */
 app.get("/inventory/:id", async (req, res) => {
-  const id = req.params.id;
   const items = await loadInventory();
-  const item = findItem(items, id);
+  const item = findItem(items, req.params.id);
 
   if (!item) return res.status(404).json({ error: "Item not found" });
-
   res.json(item);
 });
 
 // ----- PUT /inventory/:id -----
+/**
+ * @swagger
+ * /inventory/{id}:
+ *   put:
+ *     summary: Оновити інформацію про предмет
+ *     tags: [Inventory]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID предмета
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               inventory_name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Предмет оновлено
+ *       404:
+ *         description: Предмет не знайдено
+ */
 app.put("/inventory/:id", async (req, res) => {
-  const id = req.params.id;
-  const { inventory_name, description } = req.body;
-
   const items = await loadInventory();
-  const item = findItem(items, id);
+  const item = findItem(items, req.params.id);
 
   if (!item) return res.status(404).json({ error: "Item not found" });
 
-  if (inventory_name?.trim()) item.inventory_name = inventory_name;
+  const { inventory_name, description } = req.body;
+
+  if (inventory_name) item.inventory_name = inventory_name;
   if (description !== undefined) item.description = description;
 
   await saveInventory(items);
@@ -196,114 +286,196 @@ app.put("/inventory/:id", async (req, res) => {
 });
 
 // ----- DELETE /inventory/:id -----
+/**
+ * @swagger
+ * /inventory/{id}:
+ *   delete:
+ *     summary: Видалити предмет
+ *     tags: [Inventory]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID предмета
+ *     responses:
+ *       200:
+ *         description: Предмет видалено
+ *       404:
+ *         description: Предмет не знайдено
+ */
 app.delete("/inventory/:id", async (req, res) => {
-  const id = req.params.id;
   const items = await loadInventory();
-  const index = items.findIndex((it) => it.id === id);
+  const index = items.findIndex((it) => it.id === req.params.id);
 
   if (index === -1) return res.status(404).json({ error: "Item not found" });
 
   const [deleted] = items.splice(index, 1);
 
   if (deleted.photoFilename) {
-    const photoPath = path.join(CACHE_DIR, deleted.photoFilename);
-    if (fs.existsSync(photoPath)) await fsp.unlink(photoPath);
+    const p = path.join(CACHE_DIR, deleted.photoFilename);
+    if (fs.existsSync(p)) await fsp.unlink(p);
   }
 
   await saveInventory(items);
-  res.json({ message: "Deleted", id });
-});
-
-// allow only GET, PUT, DELETE
-app.all("/inventory/:id", (req, res, next) => {
-  if (["GET", "PUT", "DELETE"].includes(req.method)) return next();
-  res.status(405).json({ error: "Method not allowed" });
+  res.json({ message: "Deleted", id: req.params.id });
 });
 
 // ----- GET /inventory/:id/photo -----
+/**
+ * @swagger
+ * /inventory/{id}/photo:
+ *   get:
+ *     summary: Отримати фото предмета
+ *     tags: [Inventory]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID предмета
+ *     responses:
+ *       200:
+ *         description: Фото предмета
+ *         content:
+ *           image/*:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: Фото не знайдено
+ */
 app.get("/inventory/:id/photo", async (req, res) => {
-  const id = req.params.id;
   const items = await loadInventory();
-  const item = findItem(items, id);
+  const item = findItem(items, req.params.id);
 
-  if (!item?.photoFilename) {
+  if (!item?.photoFilename)
     return res.status(404).json({ error: "Photo not found" });
-  }
 
   const photoPath = path.join(CACHE_DIR, item.photoFilename);
-  if (!fs.existsSync(photoPath)) {
-    return res.status(404).json({ error: "Photo file not found" });
-  }
 
-  res.setHeader("Content-Type", "image/jpeg");
+  if (!fs.existsSync(photoPath))
+    return res.status(404).json({ error: "Photo file missing" });
+
   res.sendFile(photoPath);
 });
 
 // ----- PUT /inventory/:id/photo -----
+/**
+ * @swagger
+ * /inventory/{id}/photo:
+ *   put:
+ *     summary: Оновити фото предмета
+ *     tags: [Inventory]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID предмета
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - photo
+ *             properties:
+ *               photo:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Фото оновлено
+ *       400:
+ *         description: Фото не завантажено
+ *       404:
+ *         description: Предмет не знайдено
+ */
 app.put("/inventory/:id/photo", upload.single("photo"), async (req, res) => {
-  const id = req.params.id;
   const items = await loadInventory();
-  const item = findItem(items, id);
+  const item = findItem(items, req.params.id);
 
-  if (!item) {
-    if (req.file) await fsp.unlink(req.file.path);
-    return res.status(404).json({ error: "Item not found" });
-  }
+  if (!item) return res.status(404).json({ error: "Item not found" });
 
+  if (!req.file)
+    return res.status(400).json({ error: "No photo uploaded" });
+
+  // видалити старе фото
   if (item.photoFilename) {
-    const oldPath = path.join(CACHE_DIR, item.photoFilename);
-    if (fs.existsSync(oldPath)) await fsp.unlink(oldPath);
+    const old = path.join(CACHE_DIR, item.photoFilename);
+    if (fs.existsSync(old)) await fsp.unlink(old);
   }
 
-  if (req.file) {
-    item.photoFilename = req.file.filename;
-    item.photoUrl = `/inventory/${id}/photo`;
-  }
+  item.photoFilename = req.file.filename;
+  item.photoUrl = `/inventory/${item.id}/photo`;
 
   await saveInventory(items);
   res.json(item);
 });
 
-// allow only GET and PUT
-app.all("/inventory/:id/photo", (req, res, next) => {
-  if (["GET", "PUT"].includes(req.method)) return next();
-  res.status(405).json({ error: "Method not allowed" });
-});
-
 // ----- POST /search -----
+/**
+ * @swagger
+ * /search:
+ *   post:
+ *     summary: Пошук предметів за запитом
+ *     tags: [Search]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - query
+ *             properties:
+ *               query:
+ *                 type: string
+ *                 description: Пошуковий запит
+ *     responses:
+ *       200:
+ *         description: Результати пошуку (HTML)
+ *         content:
+ *           text/html:
+ *             schema:
+ *               type: string
+ */
 app.post("/search", async (req, res) => {
-  const { id, has_photo } = req.body;
+  const { query } = req.body;
+
+  if (!query) return res.send("No query provided");
 
   const items = await loadInventory();
-  const item = findItem(items, id);
+  const results = items.filter(
+    (i) =>
+      i.inventory_name.toLowerCase().includes(query.toLowerCase()) ||
+      i.description.toLowerCase().includes(query.toLowerCase())
+  );
 
-  if (!item) return res.status(404).send("Item not found");
+  if (results.length === 0) return res.send("Item not found");
 
-  let description = item.description || "";
-  if (has_photo && item.photoUrl) {
-    description += `<br><a href="${item.photoUrl}">Photo link</a>`;
+  let html = "<h1>Search Results</h1>";
+
+  for (const item of results) {
+    html += `<p><b>${item.inventory_name}</b> — ${item.description}</p>`;
+    if (item.photoUrl) {
+      html += `<img src="${item.photoUrl}" width="150"><br>`;
+    }
   }
 
-  res.status(200).send(`
-    <h1>Search result</h1>
-    <p><strong>ID:</strong> ${item.id}</p>
-    <p><strong>Name:</strong> ${item.inventory_name}</p>
-    <p><strong>Description:</strong> ${description}</p>
-  `);
-});
-
-// only POST
-app.all("/search", (req, res, next) => {
-  if (req.method === "POST") return next();
-  res.status(405).json({ error: "Method not allowed" });
+  res.send(html);
 });
 
 // ----- 404 -----
-app.use((req, res) => {
-  res.status(404).json({ error: "Not found" });
-});
+app.use((req, res) => res.status(404).json({ error: "Not found" }));
 
-// ----- Створення HTTP-сервера -----
+// ----- HTTP Server -----
 http.createServer(app).listen(PORT, HOST, () => {
   console.log(`Server running at http://${HOST}:${PORT}`);
+  console.log(`Swagger documentation: http://${HOST}:${PORT}/docs`);
 });
