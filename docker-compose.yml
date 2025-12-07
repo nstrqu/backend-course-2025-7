@@ -1,0 +1,20 @@
+services:
+  app:
+    container_name: lab7-backend
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    depends_on:
+      - mysql
+
+  mysql:
+    container_name: lab7-mysql
+    image: mysql:8
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: pass
+      MYSQL_DATABASE: course7
+    ports:
+      - "3306:3306"
