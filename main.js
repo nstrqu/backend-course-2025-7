@@ -2,6 +2,16 @@
 
 // ----- Імпорт модулів -----
 require('dotenv').config();
+const mysql = require('mysql2/promise');
+// ----- MySQL: створення пулу підключень -----
+const pool = mysql.createPool({
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+});
+require('dotenv').config();
 const http = require("http");
 const express = require("express");
 const { program } = require("commander");
@@ -94,6 +104,18 @@ app.get("/RegisterForm.html", (req, res) =>
 app.get("/SearchForm.html", (req, res) =>
   res.sendFile(path.join(__dirname, "SearchForm.html"))
 );
+
+// ----- TEST DB ROUTE -----
+app.get("/users", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM users");
+    res.json(rows);
+  } catch (error) {
+    console.error("DB error:", error);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 
 // ----- POST /register -----
 /**

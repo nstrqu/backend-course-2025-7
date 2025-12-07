@@ -10,11 +10,15 @@ services:
       - mysql
 
   mysql:
-    container_name: lab7-mysql
-    image: mysql:8
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: pass
-      MYSQL_DATABASE: course7
-    ports:
-      - "3306:3306"
+  container_name: lab7-mysql
+  image: mysql:8
+  restart: always
+  environment:
+    MYSQL_ROOT_PASSWORD: pass
+    MYSQL_DATABASE: course7
+  ports:
+    - "3306:3306"
+  volumes:
+    - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+      
