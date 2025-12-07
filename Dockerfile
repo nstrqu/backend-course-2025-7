@@ -16,4 +16,4 @@ COPY . .
 EXPOSE 3000
 
 # Команда запуску (поки без nodemon)
-CMD ["npm", "start"]
+CMD ["npm", "run", "dev"]

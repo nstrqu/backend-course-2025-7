@@ -1,13 +1,19 @@
 services:
   app:
-    container_name: lab7-backend
-    build: .
-    ports:
-      - "3000:3000"
-    env_file:
-      - .env
-    depends_on:
-      - mysql
+  container_name: lab7-backend
+  build: .
+  ports:
+    - "3000:3000"
+  env_file:
+    - .env
+  depends_on:
+    - mysql
+  volumes:
+    - .:/app
+    - /app/node_modules
+  command: npm run dev
+
+
 
   mysql:
   container_name: lab7-mysql
